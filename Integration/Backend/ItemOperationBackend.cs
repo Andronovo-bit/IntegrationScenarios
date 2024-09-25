@@ -3,7 +3,8 @@ using Integration.Common;
 
 namespace Integration.Backend;
 
-public sealed class ItemOperationBackend
+public sealed class ItemOperationBackend : IItemOperationBackend
+
 {
     private ConcurrentBag<Item> SavedItems { get; set; } = new();
     private int _identitySequence;

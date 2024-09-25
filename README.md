@@ -1,35 +1,115 @@
-﻿# AdCreative.ai Integration Case
+﻿# README
 
-## Description of the Problem
+# Project: Integration Example
 
-The project comprises two layers: Service and Backend.
+## Project Description
 
-For brevity, the API or presentation layer is excluded from the description.
+The goal is to prevent **duplicate records** during the integration of external item content into our system and to ensure consistency in **distributed system** scenarios.
 
-This represents a typical integration scenario where items are externally sent by a third party to our integration service. The service is called with only the item content, to which we assign internal incremental identifiers, returning them (in text form here) to the third party.
+The project addresses two scenarios:
 
-The rule dictates that any item content should be saved only once and not occur twice in our systems. As per the agreement, the third party should wait for the result of their call, which can take a while (simulated as two seconds here, but realistically closer to forty seconds). However, in reality, the third party calls the service multiple times without waiting for a response.
+1. **Single Server Scenario:**
+   - Preventing the same item content from being recorded multiple times.
+   - Allowing items with different content to be processed simultaneously.
 
-Although protection is in place to check for duplicate items, if called rapidly in parallel (as demonstrated in the main Program), multiple entries with the same content are recorded on our end.
+2. **Distributed System Scenario:**
+   - Preventing the same item content from being recorded multiple times when multiple servers are operating simultaneously.
+   - Implementing a distributed locking mechanism using **Redis**.
 
-## Required Solution
+## Project Structure
 
-### 1- Single Server Scenario
+- **Integration.Common**
+  - `Item` class: Defines the items.
+  - `Result` class: Represents the outcome of the operations.
 
-**a: Solution Description:**
-- Modify the code exclusively within the Service layer (folder) to ensure that the same content is never saved more than once under any circumstances.
-- Ensure that items with different content are processed concurrently without waiting for each other.
+- **Integration.Backend**
+  - `IItemOperationBackend` interface: Defines backend operations.
+  - `ItemOperationBackend` class: Handles item saving and searching operations.
 
-**b: Implementation:**
-- Implement the solution within the Service layer.
+- **Integration.Service**
+  - `ItemIntegrationService` class: The service layer where business logic resides. Implements the single server scenario.
+  - `ItemIntegrationServiceDistributed` class: Implements the distributed system scenario.
 
-**c: Demonstration in Program.cs:**
-- Add code to Program.cs to showcase that the implemented solution allows parallel storage of items with different content.
+- **Integration**
+  - `ServiceCollectionExtensions` class: Extension method (DI) for registering services and dependencies.
+  - `Program` class: The entry point of the application and where tests are conducted.
 
-### 2 - Distributed System Scenario
+## Getting Started
 
-**a: Solution Description:**
-- In case of multiple servers containing ItemIntegrationService, implement a solution for the distributed system scenario.
+### Requirements
 
-**b: Weaknesses:**
-- Identify and describe any weaknesses that the solution might have in a text file.
+- **.NET Core 6.0** or higher
+- **Redis** server (for the distributed system scenario)
+- **StackExchange.Redis** NuGet package (for the distributed system scenario)
+
+### Cloning the Project
+
+```bash
+git clone https://github.com/Andronovo-bit/IntegrationScenarios.git
+```
+
+### Installing NuGet Packages
+
+After opening the project, install the necessary NuGet packages:
+
+```bash
+dotnet restore
+```
+
+## Running the Project
+
+1. Use the **single server** version of the **ItemIntegrationService** class (content-based locking mechanism).
+
+2. Run the **Program.cs** file:
+
+   ```bash
+   dotnet run
+   ```
+
+3. In the console output, you will see that items with different content are recorded in parallel, and items with the same content are recorded only once.
+
+**Sample Output:**
+
+```
+Everything recorded:
+6:3
+5:1
+4:2
+1:a
+3:c
+2:b
+```
+
+### ItemIntegrationService (Distributed System Scenario)
+
+## Weaknesses and Points to Consider
+
+- **Single Point of Failure:** If the Redis server crashes, the locking mechanism may fail.
+- **Performance Impacts:** Distributed locking may affect performance due to network latency and additional processing load.
+- **Complexity:** Managing locking and concurrency in distributed systems is more complex.
+- **Scalability:** Redis server performance may degrade under high traffic.
+
+You can access the detailed analysis [here](Integration/DistributedScenerioAnalyze.md).
+
+## Dependency Injection and Service Lifetimes
+
+- The project uses **Dependency Injection** to manage services and dependencies.
+- Services are defined as **Singleton**, as they are designed to be thread-safe, and using the same instance throughout the application's lifetime optimizes resource usage.
+
+**ServiceCollectionExtensions.cs:**
+
+```csharp
+public static IServiceCollection AddIntegrationServices(this IServiceCollection services)
+{
+    services.AddSingleton<IItemOperationBackend, ItemOperationBackend>();
+    services.AddSingleton<ItemIntegrationService>();
+    services.AddSingleton<ItemIntegrationDistributedService>();
+
+    var redisConnectionString = configuration.GetSection("Redis:ConnectionString").Value;
+    if (!string.IsNullOrEmpty(redisConnectionString))
+    {
+        services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
+    }
+    return services;
+}
+```
